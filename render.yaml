@@ -11,5 +11,7 @@ services:
         value: 3.11.9
       - key: PORT
         value: 8000
+      - key: TZ
+        value: America/Sao_Paulo
     healthCheckPath: /
     autoDeploy: true
