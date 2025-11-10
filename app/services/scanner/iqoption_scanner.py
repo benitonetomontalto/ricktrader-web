@@ -40,8 +40,22 @@ class IQOptionScanner:
         print(f"[IQOptionScanner] ========================================")
 
         # Check if user is connected
-        if not self.session_manager.is_connected(self.username):
-            print(f"[IQOptionScanner] Usuario {self.username} nao conectado ao IQ Option")
+        is_connected = self.session_manager.is_connected(self.username)
+        print(f"[IQOptionScanner] Verificando conexao: is_connected={is_connected}")
+
+        if not is_connected:
+            print(f"[IQOptionScanner] ERRO: Usuario {self.username} nao conectado ao IQ Option")
+            print(f"[IQOptionScanner] Scanner nao pode iniciar sem conexao ativa")
+            self.is_running = False
+            return
+
+        # Refresh session timeout
+        client = self.session_manager.get_client(self.username)
+        if client:
+            print(f"[IQOptionScanner] Conexao OK - Cliente ativo: {client.is_connected}")
+            print(f"[IQOptionScanner] Timeout da sessao atualizado")
+        else:
+            print(f"[IQOptionScanner] AVISO: Cliente nao encontrado no session_manager")
             self.is_running = False
             return
 
@@ -57,6 +71,13 @@ class IQOptionScanner:
 
         while self.is_running:
             try:
+                # Verify connection is still active before scanning
+                if not self.session_manager.is_connected(self.username):
+                    print(f"[IQOptionScanner] ERRO: Conexao perdida durante scan!")
+                    print(f"[IQOptionScanner] Parando scanner - reconecte e tente novamente")
+                    self.is_running = False
+                    break
+
                 # Scan all OTC pairs
                 tasks = [self._scan_pair(pair) for pair in pairs]
                 results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -78,8 +99,13 @@ class IQOptionScanner:
                 # Wait before next scan (OTC can be scanned more frequently)
                 await asyncio.sleep(15)  # 15 seconds
 
+            except asyncio.CancelledError:
+                print(f"[IQOptionScanner] Scan cancelado via stop_scanning()")
+                break
             except Exception as e:
-                print(f"[IQOptionScanner] Erro: {e}")
+                print(f"[IQOptionScanner] Erro durante scan: {e}")
+                import traceback
+                traceback.print_exc()
                 await asyncio.sleep(5)
 
     def stop_scanning(self):
