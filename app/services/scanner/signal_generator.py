@@ -6,6 +6,7 @@ import pandas as pd
 import uuid
 from datetime import datetime, timedelta
 from typing import List, Optional
+import pytz
 from ...models.schemas import (
     TradingSignal,
     PriceActionPattern,
@@ -118,8 +119,9 @@ class SignalGenerator:
         # Calculate confidence
         confidence = self._calculate_confidence(confluences, pattern, sr_level)
 
-        # Calculate entry and expiry times (FUTURO!)
-        now = datetime.now()
+        # Calculate entry and expiry times (FUTURO!) - usando horário de Brasília
+        brasilia_tz = pytz.timezone('America/Sao_Paulo')
+        now = datetime.now(brasilia_tz)
 
         next_minute = (now + timedelta(minutes=1)).replace(second=0, microsecond=0)
         entry_buffer = 1 if self.config.sensitivity == "aggressive" else 0
