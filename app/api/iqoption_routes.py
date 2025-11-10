@@ -306,16 +306,23 @@ async def start_iqoption_scanner(
             )
 
         # Check if scanner already running
-        if username in _user_scanners and _user_scanners[username].is_running:
-            raise HTTPException(status_code=400, detail="Scanner already running")
+        if username in _user_scanners:
+            existing_scanner = _user_scanners[username]
+            if existing_scanner.is_running:
+                raise HTTPException(status_code=400, detail="Scanner already running")
+            else:
+                # Scanner exists but not running, stop it properly first
+                existing_scanner.stop_scanning()
 
-        # Create and start scanner
+        # Create and start scanner (always create fresh instance for clean state)
         scanner = IQOptionScanner(username=username, config=config)
         _user_scanners[username] = scanner
 
-        # Start scanning in background
+        # Start scanning in background and store task reference
         import asyncio
-        asyncio.create_task(scanner.start_scanning())
+        scanner._scan_task = asyncio.create_task(scanner.start_scanning())
+
+        print(f"[START_SCANNER] Scanner iniciado para {username} com nova task")
 
         return {
             "success": True,
@@ -343,6 +350,17 @@ async def stop_iqoption_scanner(current_user: dict = None, email: str = "default
 
         scanner = _user_scanners[username]
         scanner.stop_scanning()
+
+        # Wait a bit for the task to actually cancel
+        import asyncio
+        if scanner._scan_task and not scanner._scan_task.done():
+            try:
+                await asyncio.wait_for(asyncio.shield(scanner._scan_task), timeout=2.0)
+            except (asyncio.TimeoutError, asyncio.CancelledError):
+                # Expected - task was cancelled
+                pass
+
+        print(f"[STOP_SCANNER] Scanner parado para {username}")
 
         return {"success": True, "message": "Scanner stopped"}
 

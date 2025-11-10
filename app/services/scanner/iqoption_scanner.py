@@ -26,6 +26,7 @@ class IQOptionScanner:
         self.is_running = False
         self.latest_signals: Dict[str, TradingSignal] = {}
         self.session_manager = get_session_manager()
+        self._scan_task: Optional[asyncio.Task] = None
 
     async def start_scanning(self):
         """Start scanning IQ Option OTC pairs"""
@@ -73,9 +74,18 @@ class IQOptionScanner:
                 await asyncio.sleep(5)
 
     def stop_scanning(self):
-        """Stop scanning"""
+        """Stop scanning and clean up state"""
         self.is_running = False
-        print("[IQOptionScanner] Scan interrompido")
+
+        # Cancel the scanning task if it exists
+        if self._scan_task and not self._scan_task.done():
+            self._scan_task.cancel()
+            print("[IQOptionScanner] Task de scan cancelada")
+
+        # Clear latest signals to ensure fresh start on resume
+        self.latest_signals.clear()
+
+        print("[IQOptionScanner] Scan interrompido e estado limpo")
 
     async def _get_otc_pairs(self) -> List[Dict]:
         """Get available pairs from IQ Option honoring scanner config"""
