@@ -322,7 +322,15 @@ async def start_iqoption_scanner(
         import asyncio
         scanner._scan_task = asyncio.create_task(scanner.start_scanning())
 
-        print(f"[START_SCANNER] Scanner iniciado para {username} com nova task")
+        print(f"[START_SCANNER] ========================================")
+        print(f"[START_SCANNER] Usuario: {username}")
+        print(f"[START_SCANNER] Timeframe: {config.timeframe} minutos")
+        print(f"[START_SCANNER] Sensitivity: {config.sensitivity}")
+        print(f"[START_SCANNER] Only OTC: {config.only_otc}")
+        print(f"[START_SCANNER] Only Open Market: {config.only_open_market}")
+        print(f"[START_SCANNER] Symbols: {config.symbols}")
+        print(f"[START_SCANNER] Nova task criada: {scanner._scan_task}")
+        print(f"[START_SCANNER] ========================================")
 
         return {
             "success": True,

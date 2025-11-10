@@ -32,9 +32,17 @@ class IQOptionScanner:
         """Start scanning IQ Option OTC pairs"""
         self.is_running = True
 
+        print(f"[IQOptionScanner] ========================================")
+        print(f"[IQOptionScanner] INICIANDO SCAN")
+        print(f"[IQOptionScanner] Usuario: {self.username}")
+        print(f"[IQOptionScanner] Timeframe configurado: {self.config.timeframe} minutos")
+        print(f"[IQOptionScanner] Timeframe em segundos: {self.config.timeframe * 60}")
+        print(f"[IQOptionScanner] ========================================")
+
         # Check if user is connected
         if not self.session_manager.is_connected(self.username):
             print(f"[IQOptionScanner] Usuario {self.username} nao conectado ao IQ Option")
+            self.is_running = False
             return
 
         # Get OTC pairs
@@ -42,9 +50,10 @@ class IQOptionScanner:
 
         if not pairs:
             print("[IQOptionScanner] Nenhum par OTC disponivel")
+            self.is_running = False
             return
 
-        print(f"[IQOptionScanner] Iniciando scan em {len(pairs)} pares OTC...")
+        print(f"[IQOptionScanner] Iniciando scan em {len(pairs)} pares OTC com timeframe {self.config.timeframe}min...")
 
         while self.is_running:
             try:
@@ -130,6 +139,9 @@ class IQOptionScanner:
             # Get candles from IQ Option
             # Convert timeframe from minutes to seconds for IQ Option
             timeframe_seconds = self.config.timeframe * 60
+
+            print(f"[IQOptionScanner] Buscando candles para {symbol}: timeframe={self.config.timeframe}min ({timeframe_seconds}s)")
+
             candles = await self.session_manager.get_user_candles(
                 username=self.username,
                 symbol=symbol,
@@ -138,6 +150,7 @@ class IQOptionScanner:
             )
 
             if candles is None or candles.empty:
+                print(f"[IQOptionScanner] Nenhum candle retornado para {symbol}")
                 return None
 
             # Ensure we have a DataFrame for the generator
