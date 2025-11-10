@@ -1,0 +1,161 @@
+"""IQ Option Scanner - Scans OTC pairs using IQ Option data"""
+import asyncio
+from typing import List, Optional, Dict
+from datetime import datetime
+import pandas as pd
+
+from ...models.schemas import ScanConfig, TradingSignal
+from ..iqoption import get_session_manager
+from .signal_generator import SignalGenerator
+
+
+class IQOptionScanner:
+    """Scanner that uses IQ Option data for signal generation"""
+
+    def __init__(self, username: str, config: ScanConfig):
+        """
+        Initialize IQ Option scanner
+
+        Args:
+            username: User to get IQ Option connection for
+            config: Scanner configuration
+        """
+        self.username = username
+        self.config = config
+        self.signal_generator = SignalGenerator(config)
+        self.is_running = False
+        self.latest_signals: Dict[str, TradingSignal] = {}
+        self.session_manager = get_session_manager()
+
+    async def start_scanning(self):
+        """Start scanning IQ Option OTC pairs"""
+        self.is_running = True
+
+        # Check if user is connected
+        if not self.session_manager.is_connected(self.username):
+            print(f"[IQOptionScanner] Usuario {self.username} nao conectado ao IQ Option")
+            return
+
+        # Get OTC pairs
+        pairs = await self._get_otc_pairs()
+
+        if not pairs:
+            print("[IQOptionScanner] Nenhum par OTC disponivel")
+            return
+
+        print(f"[IQOptionScanner] Iniciando scan em {len(pairs)} pares OTC...")
+
+        while self.is_running:
+            try:
+                # Scan all OTC pairs
+                tasks = [self._scan_pair(pair) for pair in pairs]
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+
+                # Process results
+                new_signals = []
+                for result in results:
+                    if isinstance(result, TradingSignal):
+                        new_signals.append(result)
+                        self.latest_signals[result.symbol] = result
+
+                # Log new signals
+                if new_signals:
+                    print(f"[IQOptionScanner] {len(new_signals)} novos sinais OTC!")
+                    for signal in new_signals:
+                        print(f"  - {signal.symbol}: {signal.direction} "
+                              f"({signal.confidence:.1f}% confianca)")
+
+                # Wait before next scan (OTC can be scanned more frequently)
+                await asyncio.sleep(15)  # 15 seconds
+
+            except Exception as e:
+                print(f"[IQOptionScanner] Erro: {e}")
+                await asyncio.sleep(5)
+
+    def stop_scanning(self):
+        """Stop scanning"""
+        self.is_running = False
+        print("[IQOptionScanner] Scan interrompido")
+
+    async def _get_otc_pairs(self) -> List[Dict]:
+        """Get available pairs from IQ Option honoring scanner config"""
+        try:
+            pairs = await self.session_manager.get_user_pairs(self.username)
+
+            # Filter only active pairs
+            active_pairs = [p for p in pairs if p.get("is_active", False)]
+
+            # Respect scanner configuration filters
+            if self.config.only_otc:
+                active_pairs = [p for p in active_pairs if p.get("is_otc", False)]
+            elif self.config.only_open_market:
+                active_pairs = [p for p in active_pairs if not p.get("is_otc", False)]
+
+            if self.config.symbols:
+                symbols_set = {symbol.upper() for symbol in self.config.symbols}
+                active_pairs = [
+                    p for p in active_pairs
+                    if p.get("symbol", "").upper() in symbols_set
+                ]
+
+            return active_pairs
+
+        except Exception as e:
+            print(f"[IQOptionScanner] Erro ao buscar pares OTC: {e}")
+            return []
+
+    async def _scan_pair(self, pair: Dict) -> Optional[TradingSignal]:
+        """
+        Scan a single OTC pair for signals
+
+        Args:
+            pair: Trading pair info
+
+        Returns:
+            Trading signal if found
+        """
+        try:
+            symbol = pair["symbol"]
+
+            # Get candles from IQ Option
+            # Convert timeframe from minutes to seconds for IQ Option
+            timeframe_seconds = self.config.timeframe * 60
+            candles = await self.session_manager.get_user_candles(
+                username=self.username,
+                symbol=symbol,
+                timeframe=timeframe_seconds,
+                count=100  # Get 100 candles for analysis
+            )
+
+            if candles is None or candles.empty:
+                return None
+
+            # Ensure we have a DataFrame for the generator
+            if not isinstance(candles, pd.DataFrame):
+                candles = pd.DataFrame(candles)
+
+            # Generate signal using signal generator (synchronous)
+            signal = self.signal_generator.generate_signal(symbol, candles)
+
+            return signal
+
+        except Exception as e:
+            print(f"[IQOptionScanner] Erro ao analisar {pair.get('symbol', '?')}: {e}")
+            return None
+
+    def get_latest_signals(self) -> List[TradingSignal]:
+        """Get latest signals from all pairs"""
+        return list(self.latest_signals.values())
+
+    def get_status(self) -> dict:
+        """Get scanner status"""
+        return {
+            "is_running": self.is_running,
+            "username": self.username,
+            "active_pairs": list(self.latest_signals.keys()),
+            "signals_generated": len(self.latest_signals),
+            "config": {
+                "timeframe": self.config.timeframe,
+                "sensitivity": self.config.sensitivity,
+            }
+        }

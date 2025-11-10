@@ -1,0 +1,15 @@
+{
+  "GT4-LICENSE-maansall": {
+    "label": "Auto-created for maansalles_a31457",
+    "active": true,
+    "max_users": 1,
+    "users": {
+      "maansalles_a31457": {
+        "created_at": "2025-11-06T01:57:03.041364",
+        "last_login": "2025-11-10T02:10:42.250067",
+        "iq_email": "maansalles@gmail.com"
+      }
+    },
+    "notes": "Auto-created from license for user maansalles_a31457"
+  }
+}
