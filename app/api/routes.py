@@ -161,10 +161,15 @@ async def login(request: LoginRequest):
     )
 
 
+# Cache global de pares para reduzir carga
+_pairs_cache = {}
+_cache_timestamp = {}
+CACHE_TTL = 300  # 5 minutos de cache
+
 @router.get("/pairs", response_model=List[TradingPair])
 async def get_trading_pairs(include_otc: bool = True, current_user: dict = Depends(get_current_user)):
     """
-    Get available trading pairs from REAL IQ Option API
+    Get available trading pairs from REAL IQ Option API (com cache de 5 minutos)
 
     Args:
         include_otc: Include OTC pairs
@@ -172,6 +177,17 @@ async def get_trading_pairs(include_otc: bool = True, current_user: dict = Depen
     Returns:
         List of real trading pairs from IQ Option
     """
+    from time import time
+
+    # Verificar cache
+    cache_key = f"{current_user['username']}_{include_otc}"
+    now = time()
+
+    if cache_key in _pairs_cache and cache_key in _cache_timestamp:
+        if now - _cache_timestamp[cache_key] < CACHE_TTL:
+            print(f"[CACHE HIT] Retornando pares do cache para {current_user['username']}")
+            return _pairs_cache[cache_key]
+
     session_manager = get_session_manager()
     client = session_manager.get_client(current_user["username"])
 
@@ -198,6 +214,11 @@ async def get_trading_pairs(include_otc: bool = True, current_user: dict = Depen
         )
         for p in pairs_data
     ]
+
+    # Salvar no cache
+    _pairs_cache[cache_key] = pairs
+    _cache_timestamp[cache_key] = now
+    print(f"[CACHE MISS] Salvando pares no cache para {current_user['username']}")
 
     return pairs
 
