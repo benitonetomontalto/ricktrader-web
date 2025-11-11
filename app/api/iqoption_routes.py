@@ -397,10 +397,10 @@ async def iqoption_scanner_status(current_user: Optional[dict] = Depends(get_cur
 
 
 @router.get("/scanner/signals")
-async def iqoption_scanner_signals(current_user: dict = None, email: str = "default"):
+async def iqoption_scanner_signals(current_user: Optional[dict] = Depends(get_current_user_optional)):
     """Get latest signals from IQ Option scanner"""
     try:
-        username = email if current_user is None else current_user.get("username")
+        username = current_user.get("username") if current_user else "default"
 
         if username not in _user_scanners:
             return []
