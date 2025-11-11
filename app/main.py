@@ -148,19 +148,6 @@ async def health_check():
 # Root endpoint explícito para servir o frontend
 from fastapi.responses import FileResponse
 
-# Redirecionar páginas antigas para o frontend de desenvolvimento
-@app.get("/login")
-async def redirect_login():
-    """Redireciona /login para o frontend React"""
-    logger.info("[REDIRECT] /login → http://localhost:3000")
-    return RedirectResponse(url="http://localhost:3000", status_code=302)
-
-@app.get("/dashboard")
-async def redirect_dashboard():
-    """Redireciona /dashboard para o frontend React"""
-    logger.info("[REDIRECT] /dashboard → http://localhost:3000/dashboard")
-    return RedirectResponse(url="http://localhost:3000/dashboard", status_code=302)
-
 @app.get("/")
 async def root():
     """Serve the frontend React app"""
@@ -168,9 +155,8 @@ async def root():
         # Executável PyInstaller
         html_path = os.path.join(sys._MEIPASS, "frontend_dist", "index.html")
     else:
-        # Desenvolvimento - Redirecionar para Vite dev server
-        logger.info("[REDIRECT] / → http://localhost:3000")
-        return RedirectResponse(url="http://localhost:3000", status_code=302)
+        # Produção/Desenvolvimento - Servir index.html
+        html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend_dist", "index.html")
 
     logger.info(f"[ROOT] Servindo index.html de: {html_path} (existe: {os.path.exists(html_path)})")
 
