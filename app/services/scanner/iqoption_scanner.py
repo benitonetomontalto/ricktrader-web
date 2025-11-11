@@ -27,6 +27,9 @@ class IQOptionScanner:
         self.latest_signals: Dict[str, TradingSignal] = {}
         self.session_manager = get_session_manager()
         self._scan_task: Optional[asyncio.Task] = None
+        # CRITICAL: Limit concurrent requests to prevent memory explosion
+        self._semaphore = asyncio.Semaphore(5)  # Max 5 concurrent pair scans
+        self._scan_interval = 30  # Scan every 30 seconds (more stable)
 
     async def start_scanning(self):
         """Start scanning IQ Option OTC pairs"""
@@ -78,16 +81,27 @@ class IQOptionScanner:
                     self.is_running = False
                     break
 
-                # Scan all OTC pairs
-                tasks = [self._scan_pair(pair) for pair in pairs]
-                results = await asyncio.gather(*tasks, return_exceptions=True)
-
-                # Process results
+                # Scan all OTC pairs with controlled concurrency
+                # CRITICAL FIX: Process pairs in batches to prevent memory explosion
                 new_signals = []
-                for result in results:
-                    if isinstance(result, TradingSignal):
-                        new_signals.append(result)
-                        self.latest_signals[result.symbol] = result
+                for pair in pairs:
+                    if not self.is_running:
+                        break
+
+                    async with self._semaphore:
+                        try:
+                            # Add timeout to prevent hanging requests
+                            result = await asyncio.wait_for(
+                                self._scan_pair(pair),
+                                timeout=10.0  # 10 second timeout per pair
+                            )
+                            if isinstance(result, TradingSignal):
+                                new_signals.append(result)
+                                self.latest_signals[result.symbol] = result
+                        except asyncio.TimeoutError:
+                            print(f"[IQOptionScanner] Timeout ao escanear {pair.get('symbol', '?')}")
+                        except Exception as e:
+                            print(f"[IQOptionScanner] Erro ao escanear {pair.get('symbol', '?')}: {e}")
 
                 # Log new signals
                 if new_signals:
@@ -96,8 +110,8 @@ class IQOptionScanner:
                         print(f"  - {signal.symbol}: {signal.direction} "
                               f"({signal.confidence:.1f}% confianca)")
 
-                # Wait before next scan (OTC can be scanned more frequently)
-                await asyncio.sleep(15)  # 15 seconds
+                # Wait before next scan (increased for stability)
+                await asyncio.sleep(self._scan_interval)
 
             except asyncio.CancelledError:
                 print(f"[IQOptionScanner] Scan cancelado via stop_scanning()")
