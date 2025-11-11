@@ -290,12 +290,11 @@ async def iqoption_candles(
 @router.post("/scanner/start")
 async def start_iqoption_scanner(
     config: ScanConfig,
-    current_user: dict = None,
-    email: str = "default"
+    current_user: Optional[dict] = Depends(get_current_user_optional)
 ):
     """Start IQ Option scanner for OTC signals"""
     try:
-        username = email if current_user is None else current_user.get("username")
+        username = current_user.get("username") if current_user else "default"
         session_manager = get_session_manager()
 
         # Check if user is connected
@@ -348,10 +347,10 @@ async def start_iqoption_scanner(
 
 
 @router.post("/scanner/stop")
-async def stop_iqoption_scanner(current_user: dict = None, email: str = "default"):
+async def stop_iqoption_scanner(current_user: Optional[dict] = Depends(get_current_user_optional)):
     """Stop IQ Option scanner"""
     try:
-        username = email if current_user is None else current_user.get("username")
+        username = current_user.get("username") if current_user else "default"
 
         if username not in _user_scanners:
             raise HTTPException(status_code=400, detail="No scanner running")
@@ -379,10 +378,10 @@ async def stop_iqoption_scanner(current_user: dict = None, email: str = "default
 
 
 @router.get("/scanner/status")
-async def iqoption_scanner_status(current_user: dict = None, email: str = "default"):
+async def iqoption_scanner_status(current_user: Optional[dict] = Depends(get_current_user_optional)):
     """Get IQ Option scanner status"""
     try:
-        username = email if current_user is None else current_user.get("username")
+        username = current_user.get("username") if current_user else "default"
 
         if username not in _user_scanners:
             return {
