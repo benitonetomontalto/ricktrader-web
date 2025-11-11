@@ -78,6 +78,10 @@ app.include_router(admin_router, prefix="/api/v1")
 from app.api.diagnostic_routes import router as diagnostic_router
 app.include_router(diagnostic_router, prefix="/api/v1")
 
+# Registrar rotas do IQ Option (SCANNER CORRIGIDO!)
+from app.api.iqoption_routes import router as iqoption_router
+app.include_router(iqoption_router, prefix="/api/v1")
+
 # Servir arquivos estáticos (HTML admin e frontend)
 import os
 import sys
